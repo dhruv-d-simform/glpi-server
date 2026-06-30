@@ -19,6 +19,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Where the POC server listens (override with: SERVER_URL=... ./run-glpi-agent.sh)
 SERVER_URL="${SERVER_URL:-http://localhost:8080/}"
 
+# HTTP Basic Auth credentials — must match server.js. The agent only sends
+# these AFTER the server answers its first POST with a 401 challenge.
+AUTH_USER="glpi-agent"
+AUTH_PASS="inventory-secret"
+
 # Isolated agent working directory (state/storage) — kept inside this repo.
 STATE_DIR="$HERE/.agent-state"
 mkdir -p "$STATE_DIR"
@@ -40,6 +45,8 @@ echo
 #   --logger stderr    log to this terminal (no /var/log writes)
 #   --no-compression   send plain JSON so the server needs no inflate step
 #   --server           push to our POC server (triggers the JSON protocol)
+#   --user/--password  HTTP Basic Auth credentials. The agent sends them only
+#                      after the server replies 401 + WWW-Authenticate.
 #   --force            ignore scheduling; send every time we run this script
 #                      (--lazy is intentionally omitted — it would do the opposite)
 #   --full-inventory-postpone=0
@@ -52,6 +59,8 @@ exec "$AGENT_BIN" \
   --logger stderr \
   --no-compression \
   --server "$SERVER_URL" \
+  --user "$AUTH_USER" \
+  --password "$AUTH_PASS" \
   --force \
   --full-inventory-postpone=0 \
   "$@"

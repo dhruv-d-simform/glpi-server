@@ -17,7 +17,8 @@ system can be built against it.
 3. The server validates the payload against the official GLPI inventory schema
    and writes it to `db/<deviceid>__<timestamp>.json`.
 
-No database, no auth, no GLPI-specific libraries — just receive → validate → save.
+No database, no GLPI-specific libraries — just receive → validate → save, with
+a small **HTTP Basic Auth** add-on (see [Authentication](#authentication)).
 
 ---
 
@@ -83,6 +84,32 @@ is a "GLPI server". It proves that with three POSTs (all handled in `server.js`)
 
 > `expiration` is in hours and must be `> 0`, otherwise the agent rejects the
 > handshake.
+
+---
+
+## Authentication
+
+An add-on for the POC: every `POST` is gated by **HTTP Basic Auth**. The
+credentials are hard-coded in both `server.js` and `run-glpi-agent.sh`:
+
+```
+user:     glpi-agent
+password: inventory-secret
+```
+
+The agent sends no credentials on its first request — it only adds them after
+the server answers with a `401` challenge:
+
+```
+1. Agent  -> POST /                 (no Authorization header)
+2. Server -> 401 + WWW-Authenticate: Basic realm="glpi-server"
+3. Agent  -> POST /  Authorization: Basic <base64("glpi-agent:inventory-secret")>
+4. Server -> 200 OK
+```
+
+`run-glpi-agent.sh` passes `--user` / `--password` so the agent can answer.
+Basic auth only base64-encodes the password, so a real backend should run this
+over **HTTPS**.
 
 ---
 

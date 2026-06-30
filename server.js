@@ -34,6 +34,10 @@ const PORT = process.env.PORT || 8080;
 const DB_DIR = path.join(__dirname, 'db');
 const SCHEMA_PATH = path.join(__dirname, 'schema', 'inventory.schema.json');
 
+// HTTP Basic Auth — hard-coded dummy credentials for the POC demo.
+const AUTH_USER = 'glpi-agent';
+const AUTH_PASS = 'inventory-secret';
+
 fs.mkdirSync(DB_DIR, { recursive: true });
 
 // ---------------------------------------------------------------------------
@@ -85,6 +89,29 @@ function saveInventory(message) {
   return file;
 }
 
+// Check the Authorization header against our hard-coded Basic credentials.
+// Returns true if the request is authenticated.
+function isAuthenticated(req) {
+  const header = req.headers['authorization'] || '';
+  const [scheme, encoded] = header.split(' ');
+  if ((scheme || '').toLowerCase() !== 'basic' || !encoded) return false;
+
+  // "Basic <base64(user:password)>" -> "user:password"
+  const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+  const sep = decoded.indexOf(':');
+  if (sep === -1) return false;
+  const user = decoded.slice(0, sep);
+  const pass = decoded.slice(sep + 1);
+
+  return user === AUTH_USER && pass === AUTH_PASS;
+}
+
+// Send the 401 challenge that makes the agent retry WITH credentials.
+function sendAuthChallenge(res) {
+  res.set('WWW-Authenticate', 'Basic realm="glpi-server"');
+  return res.status(401).json({ status: 'error', message: 'authentication required' });
+}
+
 // A valid GLPI server reply: status + expiration (hours, must be > 0).
 function okContact(extra) {
   return Object.assign({ status: 'ok', expiration: 24 }, extra || {});
@@ -106,8 +133,17 @@ app.get('/', (_req, res) => {
 // The agent posts to the server root (or whatever path is in --server). Accept
 // any path so configuration mistakes don't break the POC.
 app.post('*', (req, res) => {
-  const raw = decodeBody(req.body, req.headers['content-type']);
   const agentId = req.headers['glpi-agent-id'] || '-';
+
+  // HTTP Basic Auth gate. The agent sends NO credentials on its first try, so
+  // we answer 401 + WWW-Authenticate; it then retries with the Authorization
+  // header and lands here again, this time authenticated.
+  if (!isAuthenticated(req)) {
+    console.log(`[401]    agent=${agentId} -> challenging for Basic auth`);
+    return sendAuthChallenge(res);
+  }
+
+  const raw = decodeBody(req.body, req.headers['content-type']);
 
   // Step 1: legacy PROLOG probe (XML). Reply JSON to flip the agent into
   // GLPI native mode.
@@ -155,4 +191,5 @@ app.post('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`glpi-server listening on http://localhost:${PORT}`);
   console.log(`storing inventories in ${DB_DIR}`);
+  console.log(`Basic auth required: user="${AUTH_USER}" pass="${AUTH_PASS}"`);
 });
