@@ -1,0 +1,19 @@
+{
+  "name": "glpi-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "POC server that receives GLPI Agent inventory over the GLPI native JSON protocol and stores each submission as a JSON file.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "express": "^4.21.2"
+  }
+}

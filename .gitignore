@@ -1,0 +1,7 @@
+node_modules/
+
+# GLPI Agent isolated working dir (created by run-glpi-agent.sh)
+.agent-state/
+
+# Stored inventories (POC output) — keep the folder, ignore its contents
+db/*.json
