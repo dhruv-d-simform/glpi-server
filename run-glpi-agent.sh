@@ -42,6 +42,10 @@ echo
 #   --server           push to our POC server (triggers the JSON protocol)
 #   --force            ignore scheduling; send every time we run this script
 #                      (--lazy is intentionally omitted — it would do the opposite)
+#   --full-inventory-postpone=0
+#                      always send a FULL inventory. By default (14) the agent
+#                      strips unchanged sections and flags the upload
+#                      "partial": true; 0 disables that so every run is complete.
 exec "$AGENT_BIN" \
   --config none \
   --vardir "$STATE_DIR" \
@@ -49,4 +53,5 @@ exec "$AGENT_BIN" \
   --no-compression \
   --server "$SERVER_URL" \
   --force \
+  --full-inventory-postpone=0 \
   "$@"

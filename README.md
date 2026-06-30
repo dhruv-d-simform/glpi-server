@@ -102,6 +102,59 @@ is a "GLPI server". It proves that with three POSTs (all handled in `server.js`)
 
 ---
 
+## Full vs. partial inventories
+
+The agent does **not** always send a complete inventory. To save bandwidth, the
+GLPI Agent has a "postpone full inventory" optimization: after each run it stores
+a checksum of every section in `./.agent-state/last_state.json`, and on the next
+run it **strips out any section that hasn't changed** and marks the upload as
+partial:
+
+```jsonc
+{
+  "deviceid": "SF-CPU-0231-...",
+  "itemtype": "Computer",
+  "partial": true,            // <-- only present on partial inventories
+  "content": {
+    "bios": { ... },          // BIOS + HARDWARE are always kept...
+    "hardware": { ... },
+    "drives": [ ... ],        // ...plus only the sections that changed
+    "processes": [ ... ]
+  }
+}
+```
+
+A **full** inventory has ~25 sections and no `partial` key. A **partial** one
+may carry only a handful of sections plus `"partial": true`. Both describe the
+same machine (same `deviceid`).
+
+- The default is **14** (`--full-inventory-postpone=14`): up to 14 consecutive
+  partials are allowed before the agent is forced to send a full inventory again,
+  so the server periodically gets an authoritative snapshot.
+- `BIOS` and `HARDWARE` are **always** included, even in a partial — so "section
+  is present" alone does not mean it changed.
+- A partial can also be requested explicitly via `/now?partial=...&category=...`
+  or `glpi-inventory --partial`.
+
+### How this POC handles it
+
+`run-glpi-agent.sh` passes **`--full-inventory-postpone=0`**, which disables the
+optimization entirely so **every run sends a complete inventory** with no
+`partial` flag. This keeps the POC simple (each file is the whole machine).
+`--full` is an equivalent shorthand.
+
+### What the real backend must do
+
+If you ever enable partials in production, you **must** branch on the `partial`
+field:
+
+- `partial` absent / `false` → full snapshot; safe to **replace** the device record.
+- `partial: true` → **merge** only the present sections into the existing device.
+  Do **not** treat missing sections as removed hardware — a partial that lacks
+  `softwares` does not mean the machine lost all its software.
+
+---
+
 ## Notes for the real backend
 
 This POC is intentionally framework-light. For the production system you do
